@@ -1,3 +1,5 @@
+import logging as log
+
 import numpy as np
 import torch
 from torch import nn
@@ -229,9 +231,11 @@ def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fr
 
                 net.train()  # reset to train mode after iterating through validation data
 
-                print("Epoch: {}/{}...".format(e + 1, epochs),
-                      "Step: {}...".format(counter),
-                      "Loss: {:.4f}...".format(loss.item()),
-                      "Val Loss: {:.4f}".format(np.mean(val_losses)))
+                log.info(
+                    "Epoch-{:03d}/{:03d}(step-{:03d}) ==> Loss: {:.4f}...Val Loss: {:.4f}".format(e + 1, epochs,
+                                                                                                  counter,
+                                                                                                  loss.item(),
+                                                                                                  np.mean(val_losses))
+                )
 
     return np.mean(val_losses)

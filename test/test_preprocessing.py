@@ -18,7 +18,7 @@ class PreProcessingTest(unittest.TestCase):
 
     def test_tokenize(self):
         text = "hello Bob!"
-        tokens, _, _, _ = prep.tokenize(text)
+        _, tokens, _, _ = prep.tokenize(text)
         self.assertEqual(len(tokens), len(text))
         self.assertEqual(tokens[2], tokens[3])
         self.assertEqual(tokens[4], tokens[7])
