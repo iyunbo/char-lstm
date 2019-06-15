@@ -12,7 +12,7 @@ the model in order to make this program useful for more use cases.
 python run.py [-h] [-f FILE] -p PRIME -n COUNT [-s SEQ_LENGTH]
 ```
 
-- -f FILE: the text file train model from. (optional)
+- -f FILE: the text file train model from. This option let you choose your own text as the source (optional)
 - -p PRIME: the prefix of generated text
 - -n COUNT: the number of characters of generated text
 - -s SEQ_LENGTH: the length of a meaningful sequence of characters, ex: the number of characters in a phrase. (optional)
