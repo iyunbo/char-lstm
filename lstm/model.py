@@ -274,5 +274,5 @@ def train(model, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_
                                                                                   val_loss_min)
                 )
     duration = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-    log.info("Training duration: ".format(duration))
+    log.info("Training duration: {}".format(duration))
     return np.mean(val_losses)
