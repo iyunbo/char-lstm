@@ -13,7 +13,7 @@ handler.setFormatter(formatter)
 root.addHandler(handler)
 
 
-def load_data(path='data/anna.txt'):
+def load_data(path):
     # open text file and read in data as `text`
     with open(path, 'r') as f:
         text = f.read()

@@ -1,5 +1,7 @@
+import hashlib
 import logging as log
 import os
+import time
 
 import numpy as np
 import torch
@@ -17,7 +19,8 @@ class CharLSTM(nn.Module):
     def __init__(self, text, n_hidden=512, n_layers=3,
                  drop_prob=0.5, lr=0.001):
         super().__init__()
-        self.model_file_name = 'char-lstm-{}.net'.format(version)
+        self.id = hashlib.sha1(text.encode('utf-8')).hexdigest()
+        self.model_file_name = '{}-{}.net'.format(self.id, version)
         self.drop_prob = drop_prob
         self.n_layers = n_layers
         self.n_hidden = n_hidden
@@ -75,6 +78,10 @@ class CharLSTM(nn.Module):
         cp = {'n_hidden': self.n_hidden,
               'n_layers': self.n_layers,
               'chars': self.chars,
+              'int2char': self.int2char,
+              'char2int': self.char2int,
+              'drop_prob': self.drop_prob,
+              'lr': self.lr,
               'state_dict': self.state_dict()}
 
         with open(self.model_file_name, 'wb') as f:
@@ -83,10 +90,15 @@ class CharLSTM(nn.Module):
     def load(self, filename=None):
         if not filename:
             filename = self.model_file_name
+        log.info("loading previously trained model: {}".format(filename))
         checkpoint = torch.load(filename)
         self.n_hidden = checkpoint['n_hidden']
         self.n_layers = checkpoint['n_layers']
         self.chars = checkpoint['chars']
+        self.int2char = checkpoint['int2char']
+        self.char2int = checkpoint['char2int']
+        self.drop_prob = checkpoint['drop_prob']
+        self.lr = checkpoint['lr']
         self.load_state_dict(checkpoint['state_dict'])
 
     def predict(self, char, hidden=None, top_k=None):
@@ -126,11 +138,10 @@ class CharLSTM(nn.Module):
         # return the encoded value of the predicted char and the hidden state
         return self.int2char[char], hidden
 
-    def generate(self, size, prime='the', top_k=None):
+    def already_trained(self):
+        return os.path.isfile(self.model_file_name)
 
-        if os.path.isfile(self.model_file_name):
-            log.info("loading previously trained best model: {}".format(self.model_file_name))
-            self.load(self.model_file_name)
+    def generate(self, size, prime='the', top_k=None):
 
         if on_gpu:
             self.cuda()
@@ -172,6 +183,9 @@ def train(model, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_
         print_every: Number of steps for printing training and validation loss
 
     """
+    start_time = time.time()
+    log.info("training model within {} epochs with batch_size={}, seq_length={}, lr={}, clip={}, val_frac={}, "
+             "print_every={}".format(epochs, batch_size, seq_length, lr, clip, val_frac, print_every))
     model.train()
 
     opt = torch.optim.Adam(model.parameters(), lr=lr)
@@ -259,5 +273,6 @@ def train(model, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_
                                                                                   val_loss_avg,
                                                                                   val_loss_min)
                 )
-
+    duration = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+    log.info("Training duration: ".format(duration))
     return np.mean(val_losses)
