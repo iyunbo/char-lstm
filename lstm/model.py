@@ -129,7 +129,7 @@ class CharLSTM(nn.Module):
     def generate(self, size, prime='the', top_k=None):
 
         if os.path.isfile(self.model_file_name):
-            log.info("loading previously trained best model: {}", self.model_file_name)
+            log.info("loading previously trained best model: {}".format(self.model_file_name))
             self.load(self.model_file_name)
 
         if on_gpu:
@@ -251,13 +251,13 @@ def train(model, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_
                     val_loss_min = val_loss_avg
                     model.checkpoint()
                 log.info(
-                    "Epoch-{:03d}/{:03d}(step-{:03d}) "
-                    "==> Loss: {:.4f}...Val Loss: {:.4f} (lowest: {})".format(e + 1,
-                                                                              epochs,
-                                                                              counter,
-                                                                              loss.item(),
-                                                                              val_loss_avg,
-                                                                              val_loss_min)
+                    "Epoch-{:03d}/{:03d}...Step-{:05d} "
+                    "==> Loss: {:.4f}...Val Loss: {:.4f} (lowest: {:.4f})".format(e + 1,
+                                                                                  epochs,
+                                                                                  counter,
+                                                                                  loss.item(),
+                                                                                  val_loss_avg,
+                                                                                  val_loss_min)
                 )
 
     return np.mean(val_losses)
