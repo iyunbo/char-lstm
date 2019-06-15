@@ -5,7 +5,7 @@ from torch import nn
 from lstm import preprocessing as prep
 
 on_gpu = torch.cuda.is_available()
-
+version = 'v1'
 
 class CharLSTM(nn.Module):
 
@@ -73,7 +73,6 @@ def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fr
         ---------
 
         net: CharRNN network
-        data: the data to train the network
         epochs: Number of epochs to train
         batch_size: Number of mini-sequences per mini-batch, aka batch size
         seq_length: Number of character steps per mini-batch
@@ -162,3 +161,15 @@ def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fr
                       "Val Loss: {:.4f}".format(np.mean(val_losses)))
 
     return np.mean(val_losses)
+
+
+def checkpoint(net: nn.Module):
+    model_name = 'char-lstm-{}.net'.format(version)
+
+    cp = {'n_hidden': net.n_hidden,
+          'n_layers': net.n_layers,
+          'state_dict': net.state_dict(),
+          'tokens': net.chars}
+
+    with open(model_name, 'wb') as f:
+        torch.save(cp, f)
