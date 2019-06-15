@@ -31,7 +31,7 @@ def tokenize(text):
 
     # encode the text
     tokenized = np.array([char2int[ch] for ch in text])
-    return tokenized, int2char, char2int
+    return chars, tokenized, int2char, char2int
 
 
 def one_hot_encode(arr, n_labels):

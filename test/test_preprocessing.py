@@ -18,14 +18,14 @@ class PreProcessingTest(unittest.TestCase):
 
     def test_tokenize(self):
         text = "hello Bob!"
-        tokens, _, _ = prep.tokenize(text)
+        tokens, _, _, _ = prep.tokenize(text)
         self.assertEqual(len(tokens), len(text))
         self.assertEqual(tokens[2], tokens[3])
         self.assertEqual(tokens[4], tokens[7])
 
     def test_tokenized_mapping(self):
         text = "hello Bob!"
-        _, int2char, char2int = prep.tokenize(text)
+        _, _, int2char, char2int = prep.tokenize(text)
         h_int = char2int['h']
         one_char = int2char[1]
         self.assertEqual(int2char[h_int], 'h')

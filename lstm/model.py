@@ -1,11 +1,13 @@
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from lstm import preprocessing as prep
 
 on_gpu = torch.cuda.is_available()
 version = 'v1'
+
 
 class CharLSTM(nn.Module):
 
@@ -18,8 +20,7 @@ class CharLSTM(nn.Module):
         self.lr = lr
 
         # creating character dictionaries
-        self.chars, self.int2char, self.char2int = prep.tokenize(text)
-        self.encoded = np.array([self.char2int[ch] for ch in text])
+        self.chars, self.encoded, self.int2char, self.char2int = prep.tokenize(text)
 
         # creating LSTM layers
         self.lstm = nn.LSTM(len(self.chars), n_hidden, n_layers,
@@ -64,6 +65,79 @@ class CharLSTM(nn.Module):
                       weight.new(self.n_layers, batch_size, self.n_hidden).zero_())
 
         return hidden
+
+    def checkpoint(self):
+        model_name = 'char-lstm-{}.net'.format(version)
+
+        cp = {'n_hidden': self.n_hidden,
+              'n_layers': self.n_layers,
+              'state_dict': self.state_dict(),
+              'tokens': self.chars}
+
+        with open(model_name, 'wb') as f:
+            torch.save(cp, f)
+
+    def predict(self, char, hidden=None, top_k=None):
+        """ Given a character, predict the next character.
+            Returns the predicted character and the hidden state.
+        """
+
+        # tensor inputs
+        x = np.array([[self.char2int[char]]])
+        x = prep.one_hot_encode(x, len(self.chars))
+        inputs = torch.from_numpy(x)
+
+        if on_gpu:
+            inputs = inputs.cuda()
+
+        # detach hidden state from history
+        hidden = tuple([e.data for e in hidden])
+        # get the output of the model
+        out, hidden = self.forward(inputs, hidden)
+
+        # get the character probabilities
+        p = F.softmax(out, dim=1).data
+        if on_gpu:
+            p = p.cpu()  # move to cpu
+
+        # get top characters
+        if top_k is None:
+            top_ch = np.arange(len(self.chars))
+        else:
+            p, top_ch = p.topk(top_k)
+            top_ch = top_ch.numpy().squeeze()
+
+        # select the likely next character with some element of randomness
+        p = p.numpy().squeeze()
+        char = np.random.choice(top_ch, p=p / p.sum())
+
+        # return the encoded value of the predicted char and the hidden state
+        return self.int2char[char], hidden
+
+    def generate(self, size, prime='the', top_k=None):
+
+        if on_gpu:
+            self.cuda()
+        else:
+            self.cpu()
+
+        self.eval()  # eval mode
+
+        # string to next_char array
+        chars = [ch for ch in prime]
+        hidden = self.init_hidden(1)
+        next_char = ''
+        for ch in prime:
+            next_char, hidden = self.predict(ch, hidden, top_k=top_k)
+
+        chars.append(next_char)
+
+        # Now pass in the previous character and get a new one
+        for ii in range(size - len(prime) - 1):
+            next_char, hidden = self.predict(chars[-1], hidden, top_k=top_k)
+            chars.append(next_char)
+
+        return ''.join(chars)
 
 
 def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_frac=0.1, print_every=10):
@@ -161,15 +235,3 @@ def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fr
                       "Val Loss: {:.4f}".format(np.mean(val_losses)))
 
     return np.mean(val_losses)
-
-
-def checkpoint(net: nn.Module):
-    model_name = 'char-lstm-{}.net'.format(version)
-
-    cp = {'n_hidden': net.n_hidden,
-          'n_layers': net.n_layers,
-          'state_dict': net.state_dict(),
-          'tokens': net.chars}
-
-    with open(model_name, 'wb') as f:
-        torch.save(cp, f)

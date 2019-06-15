@@ -16,7 +16,7 @@ class PreProcessingTest(unittest.TestCase):
         self.assertEqual(0.001, net.lr)
         self.assertEqual(4, len(net.char2int))
         self.assertEqual(net.n_hidden, net.fc.in_features)
-        self.assertEqual(5, net.lstm.input_size)
+        self.assertEqual(4, net.lstm.input_size)
         self.assertEqual(512, net.lstm.hidden_size)
         self.assertEqual(net.n_layers, net.lstm.num_layers)
         self.assertEqual(0.5, net.lstm.dropout)
@@ -35,5 +35,20 @@ class PreProcessingTest(unittest.TestCase):
 
     def test_should_save_model_on_checkpoint(self):
         net = CharLSTM("test")
-        model.checkpoint(net)
+        net.checkpoint()
         self.assertTrue(os.path.isfile('char-lstm-{}.net'.format(model.version)))
+
+    def test_should_predict_next_char(self):
+        net = CharLSTM("hello world! shall we begin? let's go.")
+        train(net, epochs=2, batch_size=2, seq_length=2, print_every=4)
+        h = net.init_hidden(1)
+        char, _ = net.predict('e', h)
+        log.info("next char: {}".format(char))
+        self.assertTrue(char)
+
+    def test_should_generate_text_for_given_size(self):
+        net = CharLSTM("hello world! shall we begin? let's go.")
+        train(net, epochs=2, batch_size=2, seq_length=2, print_every=4)
+        text = net.generate(50, "all")
+        log.info(text)
+        self.assertEqual(50, len(text))
