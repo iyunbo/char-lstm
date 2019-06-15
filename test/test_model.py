@@ -37,7 +37,7 @@ class PreProcessingTest(unittest.TestCase):
 
     def test_should_save_model_on_checkpoint(self):
         trained_model.checkpoint()
-        self.assertTrue(os.path.isfile('char-lstm-{}.net'.format(model.version)))
+        self.assertTrue(os.path.isfile(trained_model.model_file_name))
 
     def test_should_predict_next_char(self):
         h = trained_model.init_hidden(1)
@@ -55,3 +55,8 @@ class PreProcessingTest(unittest.TestCase):
         text = trained_model.generate(50, "all")
         log.info(text)
         self.assertEqual(50, len(text))
+
+    def test_should_load_from_file(self):
+        n_hidden = trained_model.n_hidden
+        trained_model.load()
+        self.assertEqual(n_hidden, trained_model.n_hidden)

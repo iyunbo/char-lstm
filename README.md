@@ -1,5 +1,5 @@
 # char-lstm
-build an character level LSTM for generating some fun text
+build an character level LSTM on GPU for generating some fun text
 
 When I was learning RNN from
 https://github.com/udacity/deep-learning-v2-pytorch/blob/master/recurrent-neural-networks/char-rnn, I was so interested 

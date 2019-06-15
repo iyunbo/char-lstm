@@ -1,4 +1,5 @@
 import logging as log
+import os
 
 import numpy as np
 import torch
@@ -16,6 +17,7 @@ class CharLSTM(nn.Module):
     def __init__(self, text, n_hidden=512, n_layers=3,
                  drop_prob=0.5, lr=0.001):
         super().__init__()
+        self.model_file_name = 'char-lstm-{}.net'.format(version)
         self.drop_prob = drop_prob
         self.n_layers = n_layers
         self.n_hidden = n_hidden
@@ -69,15 +71,23 @@ class CharLSTM(nn.Module):
         return hidden
 
     def checkpoint(self):
-        model_name = 'char-lstm-{}.net'.format(version)
 
         cp = {'n_hidden': self.n_hidden,
               'n_layers': self.n_layers,
-              'state_dict': self.state_dict(),
-              'tokens': self.chars}
+              'chars': self.chars,
+              'state_dict': self.state_dict()}
 
-        with open(model_name, 'wb') as f:
+        with open(self.model_file_name, 'wb') as f:
             torch.save(cp, f)
+
+    def load(self, filename=None):
+        if not filename:
+            filename = self.model_file_name
+        checkpoint = torch.load(filename)
+        self.n_hidden = checkpoint['n_hidden']
+        self.n_layers = checkpoint['n_layers']
+        self.chars = checkpoint['chars']
+        self.load_state_dict(checkpoint['state_dict'])
 
     def predict(self, char, hidden=None, top_k=None):
         """ Given a character, predict the next character.
@@ -118,6 +128,10 @@ class CharLSTM(nn.Module):
 
     def generate(self, size, prime='the', top_k=None):
 
+        if os.path.isfile(self.model_file_name):
+            log.info("loading previously trained best model: {}", self.model_file_name)
+            self.load(self.model_file_name)
+
         if on_gpu:
             self.cuda()
         else:
@@ -142,13 +156,13 @@ class CharLSTM(nn.Module):
         return ''.join(chars)
 
 
-def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_frac=0.1, print_every=10):
+def train(model, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_frac=0.1, print_every=10):
     """ Training a network
 
         Arguments
         ---------
 
-        net: CharRNN network
+        model: CharRNN network
         epochs: Number of epochs to train
         batch_size: Number of mini-sequences per mini-batch, aka batch size
         seq_length: Number of character steps per mini-batch
@@ -158,25 +172,26 @@ def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fr
         print_every: Number of steps for printing training and validation loss
 
     """
-    net.train()
+    model.train()
 
-    opt = torch.optim.Adam(net.parameters(), lr=lr)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
     # create training and validation data
-    data = net.encoded
+    data = model.encoded
     val_idx = int(len(data) * (1 - val_frac))
     data, val_data = data[:val_idx], data[val_idx:]
 
     if on_gpu:
-        net.cuda()
+        model.cuda()
 
     counter = 0
-    n_chars = len(net.chars)
+    n_chars = len(model.chars)
     val_losses = [-10]
+    val_loss_min = 10
     for e in range(epochs):
         # initialize hidden state
-        h = net.init_hidden(batch_size)
+        h = model.init_hidden(batch_size)
 
         for x, y in prep.get_batches(data, batch_size, seq_length):
             counter += 1
@@ -193,24 +208,24 @@ def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fr
             h = tuple([each.data for each in h])
 
             # zero accumulated gradients
-            net.zero_grad()
+            model.zero_grad()
 
             # get the output from the model
-            output, h = net(inputs, h)
+            output, h = model(inputs, h)
 
             # calculate the loss and perform backprop
             loss = criterion(output, targets.view(batch_size * seq_length).long())
             loss.backward()
             # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-            nn.utils.clip_grad_norm_(net.parameters(), clip)
+            nn.utils.clip_grad_norm_(model.parameters(), clip)
             opt.step()
 
             # loss stats
             if counter % print_every == 0:
                 # Get validation loss
-                val_h = net.init_hidden(batch_size)
+                val_h = model.init_hidden(batch_size)
                 val_losses = []
-                net.eval()
+                model.eval()
                 for inputs, label in prep.get_batches(val_data, batch_size, seq_length):
                     # One-hot encode our data and make them Torch tensors
                     x = prep.one_hot_encode(inputs, n_chars)
@@ -224,18 +239,25 @@ def train(net, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fr
                     if on_gpu:
                         inputs, targets = inputs.cuda(), targets.cuda()
 
-                    output, val_h = net(inputs, val_h)
+                    output, val_h = model(inputs, val_h)
                     val_loss = criterion(output, targets.view(batch_size * seq_length).long())
 
                     val_losses.append(val_loss.item())
 
-                net.train()  # reset to train mode after iterating through validation data
+                model.train()  # reset to train mode after iterating through validation data
 
+                val_loss_avg = np.mean(val_losses)
+                if val_loss_avg < val_loss_min:
+                    val_loss_min = val_loss_avg
+                    model.checkpoint()
                 log.info(
-                    "Epoch-{:03d}/{:03d}(step-{:03d}) ==> Loss: {:.4f}...Val Loss: {:.4f}".format(e + 1, epochs,
-                                                                                                  counter,
-                                                                                                  loss.item(),
-                                                                                                  np.mean(val_losses))
+                    "Epoch-{:03d}/{:03d}(step-{:03d}) "
+                    "==> Loss: {:.4f}...Val Loss: {:.4f} (lowest: {})".format(e + 1,
+                                                                              epochs,
+                                                                              counter,
+                                                                              loss.item(),
+                                                                              val_loss_avg,
+                                                                              val_loss_min)
                 )
 
     return np.mean(val_losses)
